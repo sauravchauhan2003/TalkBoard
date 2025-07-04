@@ -1,6 +1,7 @@
 package com.example.TalkBoard.Authentication;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.SignatureException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.Date;
@@ -8,7 +9,7 @@ import java.util.Date;
 @Component
 public class JWTUtil {
 
-    private final String SECRET_KEY = "your_very_secret_key_change_this"; // Replace with a secure key
+    private final String SECRET_KEY = "MysecretjsdhfkushakefmfbskjhfdkjhaebdfkuahdnabdhbsalkDNJjhsbfjkawndkhsbfunadhksbfhajsbhsfnkdJnbhsdbfjansjfinsufbajnfhsbfuanfhjsbghkey"; // Replace with a secure key
     private final long EXPIRATION_TIME = 24 * 60 * 60 * 1000*10;
 
     // Generate JWT for a user

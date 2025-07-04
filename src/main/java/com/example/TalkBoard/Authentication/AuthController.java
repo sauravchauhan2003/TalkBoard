@@ -1,90 +1,107 @@
 package com.example.TalkBoard.Authentication;
 
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 public class AuthController {
+
     @Autowired
     private VerificationService verificationService;
+
     @Autowired
     private MyUserRepository repository;
+
     @Autowired
     private JWTUtil jwtUtil;
+
+    @Autowired
+    private EmailService emailService;
+
     @PostMapping("/register")
-    public ResponseEntity<?> register(@RequestHeader String email,
-                                   @RequestHeader String username,
-                                   @RequestHeader String password,
-                                   HttpServletResponse response){
-        if(email.isEmpty()||username.isEmpty()||password.isEmpty()){
-            return ResponseEntity.badRequest().body("Missing one or more paramters");
-        }
-        if(repository.existsByEmail(email)|| repository.existsByUsername(username)){
-            return ResponseEntity.badRequest().body("Username or email already in use");
-        }
-        else{
-            MyUser myUser=new MyUser();
-            myUser.setEmail(email);
-            myUser.setPassword(password);
-            myUser.setUsername(username);
-            myUser.setActivated(false);
-            repository.save(myUser);
-            String jwt=jwtUtil.generateToken(myUser);
-            Cookie cookie = new Cookie("token", jwt);
-            cookie.setHttpOnly(true);
-            cookie.setSecure(true);
-            cookie.setPath("/");
-            cookie.setMaxAge(24 * 60 * 60*10);
-            response.addCookie(cookie);
-            verificationService.storeEmailandlink(email);
-            return ResponseEntity.ok("User registered and JWT set in cookie");
+    public String register(@RequestHeader String email,
+                           @RequestHeader String username,
+                           @RequestHeader String password,
+                           HttpServletResponse response) {
+
+        System.out.println("Registering user:");
+        System.out.println("Email: " + email);
+        System.out.println("Username: " + username);
+
+        if (email.isEmpty() || username.isEmpty() || password.isEmpty()) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            return "Missing one or more parameters";
         }
 
+        if (repository.existsByEmail(email) || repository.existsByUsername(username)) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            return "Username or email already in use";
+        }
+
+        MyUser myUser = new MyUser();
+        myUser.setEmail(email);
+        myUser.setPassword(password);
+        myUser.setUsername(username);
+        myUser.setActivated(false);
+        repository.save(myUser);
+
+        String jwt = jwtUtil.generateToken(myUser);
+        verificationService.storeEmailandlink(email);
+
+
+        response.setStatus(HttpServletResponse.SC_OK);
+        System.out.println("JWT issued: " + jwt);
+        return jwt;
     }
+
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestHeader String username,
-                                   @RequestHeader String password,
-                                   HttpServletResponse response){
-        if(repository.existsByUsername(username)){
-            MyUser user=repository.getByUsername(username).get();
-            if(user.getPassword().equals(password)){
-                if(!user.isActivated()){
-                    return ResponseEntity.badRequest().body("Check your email for activating your account");
-                }
-                else{
-                    String jwt=jwtUtil.generateToken(user);
-                    Cookie cookie = new Cookie("token", jwt);
-                    cookie.setHttpOnly(true);
-                    cookie.setSecure(true);
-                    cookie.setPath("/");
-                    cookie.setMaxAge(24 * 60 * 60*10);
-                    response.addCookie(cookie);
-                    return ResponseEntity.ok().build();
-                }
-            }
-            else return ResponseEntity.badRequest().body("Incorrect password");
-        }
-        else{
-            return ResponseEntity.badRequest().body("Wrong username");
+    public String login(@RequestHeader String username,
+                        @RequestHeader String password,
+                        HttpServletResponse response) {
+
+        System.out.println("Login attempt for username: " + username);
+
+        if (!repository.existsByUsername(username)) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            return "Wrong username";
         }
 
+        MyUser user = repository.getByUsername(username).get();
+
+        if (!user.getPassword().equals(password)) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            return "Incorrect password";
+        }
+
+        if (!user.isActivated()) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            return "Check your email for activating your account";
+        }
+
+        String jwt = jwtUtil.generateToken(user);
+        response.setStatus(HttpServletResponse.SC_OK);
+        System.out.println("Login successful. JWT: " + jwt);
+        return jwt;
     }
+
     @PostMapping("/verify")
-    public ResponseEntity<?> verify(@RequestParam String token){
-        if(verificationService.verify(token).equals("Invalid link")){
-            return ResponseEntity.badRequest().body("Invalid Link");
+    public String verify(@RequestParam String token,
+                         HttpServletResponse response) {
+
+        System.out.println("Verification token received: " + token);
+
+        String result = verificationService.verify(token);
+
+        if ("Invalid link".equals(result)) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            System.out.println("Verification failed: Invalid token");
+            return "Invalid Link";
         }
-        else{
-            repository.getByEmail(verificationService.verify(token)).get().setActivated(true);
-            return  ResponseEntity.ok("Account activated.You may now log in with your username and password");
-        }
+
+        repository.getByEmail(result).get().setActivated(true);
+        response.setStatus(HttpServletResponse.SC_OK);
+        System.out.println("Account verified for email: " + result);
+        return "Account activated. You may now log in with your username and password";
     }
-
-
 }
